@@ -161,4 +161,9 @@ span {
     overflow-wrap: break-word; 
     margin-right: 10px; 
 }
-
+.icon {
+    height: 20px;
+  }
+button{
+    display: flex;
+}

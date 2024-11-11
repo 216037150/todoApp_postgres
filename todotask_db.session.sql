@@ -5,3 +5,5 @@
 -- );
 
 SELECT * from tasks;
+-- TRUNCATE TABLE tasks;
+

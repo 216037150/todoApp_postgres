@@ -3,16 +3,16 @@ import path from "path";
 import express from "express";
 import { dirname } from "path";
 import { fileURLToPath } from "url";
-import bodyParser from "body-parser";
 
 const { Client } = pkg;
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = 5000;
 const app = express();
+let date = new Date();
 
-//data connection
+// Database connection
 const db = new Client({
-  user: "Siyabonga",
+  user: "siyabonga",
   host: "localhost",
   database: "todotask_db",
   password: "Siya@100",
@@ -29,18 +29,17 @@ async function connectDb() {
 }
 connectDb();
 
-// static files
+// Middleware
 app.use(express.static(path.join(__dirname, "../client")));
-// app.use('/Utils', express.static(path.join(__dirname, '../Utils')));
-app.use(express.json());
+app.use(express.json()); // Only need express.json() for JSON bodies
 
-//POST
-
+// Save task to database
 async function saveTask(description, date) {
-  const query = `INSERT INTO tasks(description, date) VALUES ($1, $2);`;
+  const query = `INSERT INTO tasks(description, date) VALUES ($1, $2) RETURNING *;`;
   try {
+    console.log("Inserting task:", description, date); // Log inputs to the function
     const result = await db.query(query, [description, date]);
-    console.log("Inserted row:", result.rows);
+    console.log("Inserted row:", result.rows[0]); // Log result
     return result.rows[0];
   } catch (error) {
     console.error("Error during database insert:", error.message);
@@ -48,35 +47,64 @@ async function saveTask(description, date) {
   }
 }
 
-app.post("/task", async (req, res) => {
-  try {
-    const { description, date } = req.body;
-    console.log("Received data:", req.body);
-    if (!description) {
-      return response.status(400).json({ message: "title is required" });
-    }
+// Add a task
+app.post("/add", async (req, res) => {
+  const { description, date } = req.body;
+  console.log("Request body:", req.body); // Check the request data
 
-    await saveTask(description, date);
-    res.status(200).json({ message: "Task saved successfully!" });
+  try {
+    const newTask = await saveTask(description, date);
+    res.status(201).json(newTask);
   } catch (error) {
-    console.error("Error on saving task:", error.message);
     res.status(500).json({ error: "Failed to save task" });
   }
 });
 
-//insert task into database
+// Edit a task
+app.post("/edit", async (req, res) => {
+  const { id, description, date } = req.body;
 
-app.get("/myTask", async (req, res) => {
   try {
-    const result = await db.query(` SELECT * FROM tasks`);
-    res.json(result.rows);
+    await db.query("UPDATE tasks SET description = $1, date = $2 WHERE id = $3", [description, date, id]);
+    res.status(200).json({ message: "Task updated successfully" });
   } catch (error) {
-    console.error("Error fetching task:", error.message);
-    res.status(500).json({ error: "Failed to tasks" });
+    console.error("Error updating task:", error.message);
+    res.status(500).json({ error: "Failed to edit task" });
   }
 });
 
-// the app is running here
+// Fetch tasks
+app.get("/myTask", async (req, res) => {
+  try {
+    const result = await db.query("SELECT * FROM tasks ORDER BY date DESC");
+    console.log("Fetched tasks:", result.rows);  // Log fetched tasks
+    res.json(result.rows);
+  } catch (error) {
+    console.error("Error fetching tasks:", error.message);
+    res.status(500).json({ error: "Failed to fetch tasks" });
+  }
+});
+
+app.delete("/delete-task/:id?", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    if (id) {
+      // Delete a single task by ID
+      await db.query("DELETE FROM tasks WHERE id = $1", [id]);
+      res.status(200).json({ message: `Task with ID ${id} has been deleted` });
+    } else {
+      // If no ID is provided, delete all tasks
+      await db.query("DELETE FROM tasks");
+      res.status(200).json({ message: "All tasks have been deleted" });
+    }
+  } catch (error) {
+    console.error("Error deleting task:", error.message);
+    res.status(500).json({ error: "Failed to delete task" });
+  }
+});
+
+
 app.listen(PORT, () => {
-  console.log(`Server is running on port http://localhost:${PORT}`);
+  console.log(`Server is running at http://localhost:${PORT}`);
 });
